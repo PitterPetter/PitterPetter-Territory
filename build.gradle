@@ -25,19 +25,27 @@ repositories {
 }
 
 dependencies {
-
-    implementation 'org.hibernate.orm:hibernate-spatial:6.5.2.Final'
-    implementation 'org.redisson:redisson-spring-boot-starter:3.27.2'
+    // --- Core ---
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-	compileOnly 'org.projectlombok:lombok'
-	developmentOnly 'org.springframework.boot:spring-boot-devtools'
-	runtimeOnly 'org.postgresql:postgresql'
-	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // --- Database / PostGIS ---
+    implementation 'org.postgresql:postgresql'
+    implementation 'org.hibernate.orm:hibernate-spatial:6.5.2.Final'
+
+    // --- Redis / Cache ---
+    implementation 'org.redisson:redisson-spring-boot-starter:3.27.2'
+
+    // --- Lombok / Dev ---
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // --- Test ---
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
