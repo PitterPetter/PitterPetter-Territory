@@ -1,8 +1,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:territory}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:password}
+    username: ${DB_USERNAME:minjae389}
+    password: ${DB_PASSWORD:1619}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -10,6 +10,7 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
+        # ❌ dialect 지정하지 마!
         show_sql: true
         format_sql: true
 
