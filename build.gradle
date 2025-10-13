@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.6'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.github.davidmc24.gradle.plugin.avro' version '1.6.0'
 }
 
 group = 'com.pitterpetter'
@@ -19,25 +20,28 @@ repositories {
 }
 
 dependencies {
-    // --- Spring Core ---
+    // Spring Core
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-    // --- Database / PostGIS ---
-    implementation 'org.postgresql:postgresql:42.7.3'
-    implementation 'org.hibernate.orm:hibernate-spatial:6.6.29.Final' // ✅ 최신 안정 버전으로 변경
+    // PostgreSQL + PostGIS
+    implementation 'org.postgresql:postgresql'
+    implementation 'org.hibernate.orm:hibernate-spatial:6.6.29.Final'
 
-    // --- Lombok / Dev ---
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // .env 지원
+    implementation 'io.github.cdimascio:dotenv-java:3.0.0'
+
+    // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
 
-    // --- Test ---
+    // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-}
 
-tasks.named('test') {
-    useJUnitPlatform()
-}
+    // swaager
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
+    }
