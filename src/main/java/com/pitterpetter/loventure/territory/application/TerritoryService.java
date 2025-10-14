@@ -5,8 +5,8 @@ import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegionRepo
 import com.pitterpetter.loventure.territory.domain.region.Region;
 import com.pitterpetter.loventure.territory.domain.region.RegionRepository;
 import com.pitterpetter.loventure.territory.dto.CheckResponse;
+import com.pitterpetter.loventure.territory.dto.LookupResponse;
 import com.pitterpetter.loventure.territory.dto.RegionSummary;
-import com.pitterpetter.loventure.territory.exception.ApiException;
 import com.pitterpetter.loventure.territory.exception.ErrorCode;
 import com.pitterpetter.loventure.territory.util.ValidationUtils;
 import java.util.Locale;
@@ -23,9 +23,10 @@ public class TerritoryService {
     private final RegionRepository regionRepository;
     private final CoupleRegionRepository coupleRegionRepository;
 
-    public CheckResponse checkTerritory(Long coupleId, double latitude, double longitude) {
+    public CheckResponse check(Long coupleId, double lon, double lat) {
+        ValidationUtils.validateLonLat(lon, lat);
         Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
-        Optional<Region> regionOptional = findRegionByPoint(latitude, longitude);
+        Optional<Region> regionOptional = findRegionByPoint(lon, lat);
 
         if (regionOptional.isEmpty()) {
             return CheckResponse.builder()
@@ -52,14 +53,15 @@ public class TerritoryService {
             .build();
     }
 
-    public RegionSummary lookupTerritory(double latitude, double longitude) {
-        Region region = findRegionByPoint(latitude, longitude)
-            .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
-        return RegionSummary.from(region);
+    public LookupResponse lookup(double lon, double lat) {
+        ValidationUtils.validateLonLat(lon, lat);
+        return findRegionByPoint(lon, lat)
+            .map(LookupResponse::inCoverage)
+            .orElseGet(LookupResponse::outOfCoverage);
     }
 
-    private Optional<Region> findRegionByPoint(double latitude, double longitude) {
-        String pointWkt = String.format(Locale.US, "POINT(%f %f)", longitude, latitude);
+    private Optional<Region> findRegionByPoint(double lon, double lat) {
+        String pointWkt = String.format(Locale.US, "POINT(%f %f)", lon, lat);
         return regionRepository.findRegionByPoint(pointWkt);
     }
 }

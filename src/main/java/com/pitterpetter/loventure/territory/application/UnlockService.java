@@ -4,19 +4,19 @@ import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegion;
 import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegionRepository;
 import com.pitterpetter.loventure.territory.domain.region.Region;
 import com.pitterpetter.loventure.territory.domain.region.RegionRepository;
-import com.pitterpetter.loventure.territory.dto.RegionSummary;
 import com.pitterpetter.loventure.territory.dto.UnlockRequest;
 import com.pitterpetter.loventure.territory.dto.UnlockResponse;
 import com.pitterpetter.loventure.territory.dto.UnlockedResult;
 import com.pitterpetter.loventure.territory.exception.ApiException;
 import com.pitterpetter.loventure.territory.exception.ErrorCode;
+import com.pitterpetter.loventure.territory.util.GeoJsonUtils;
 import com.pitterpetter.loventure.territory.util.ValidationUtils;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,6 +31,7 @@ public class UnlockService {
     private final RegionRepository regionRepository;
 
     @Transactional
+    @CacheEvict(value = "unlockedRegions", key = "#coupleId")
     public UnlockResponse unlock(Long coupleId, UnlockRequest request) {
         Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
         Region region = resolveRegion(request);
@@ -41,22 +42,28 @@ public class UnlockService {
             .orElseGet(() -> createUnlock(verifiedCoupleId, region, request));
 
         CoupleRegion saved = coupleRegionRepository.save(coupleRegion);
-        return UnlockResponse.builder()
-            .coupleId(saved.getCoupleId())
-            .region(RegionSummary.from(saved.getRegion()))
-            .isUnlocked(!saved.isLocked())
-            .unlockType(saved.getUnlockType())
-            .selectedBy(saved.getSelectedBy())
-            .unlockedAt(convertToInstant(saved.getUnlockedAt()))
-            .build();
+        return UnlockResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
-    public List<UnlockedResult> findUnlockedRegions(Long coupleId) {
-        Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
-        return coupleRegionRepository.findByCoupleIdAndIsLockedFalse(verifiedCoupleId).stream()
+    public List<UnlockedResult> getUnlockedRegions(Long coupleId) {
+        return getUnlockedCoupleRegions(coupleId).stream()
             .map(UnlockedResult::from)
             .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getUnlockedRegionsAsFeature(Long coupleId) {
+        List<CoupleRegion> coupleRegions = getUnlockedCoupleRegions(coupleId);
+        List<Region> regions = coupleRegions.stream()
+            .map(CoupleRegion::getRegion)
+            .collect(Collectors.toList());
+        return GeoJsonUtils.toFeatureCollection(regions);
+    }
+
+    private List<CoupleRegion> getUnlockedCoupleRegions(Long coupleId) {
+        Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
+        return coupleRegionRepository.findByCoupleIdAndIsLockedFalse(verifiedCoupleId);
     }
 
     private CoupleRegion updateUnlock(CoupleRegion coupleRegion, UnlockRequest request) {
@@ -73,6 +80,7 @@ public class UnlockService {
             .coupleId(coupleId)
             .region(region)
             .isLocked(false)
+            .unlockType(DEFAULT_UNLOCK_TYPE)
             .unlockedAt(LocalDateTime.now())
             .build();
         applyMetadata(coupleRegion, request);
@@ -86,7 +94,7 @@ public class UnlockService {
             coupleRegion.setUnlockType(DEFAULT_UNLOCK_TYPE);
         }
 
-        if (request.getSelectedBy() != null) {
+        if (StringUtils.hasText(request.getSelectedBy())) {
             coupleRegion.setSelectedBy(request.getSelectedBy());
         }
     }
@@ -102,9 +110,5 @@ public class UnlockService {
                 .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
         }
         throw new ApiException(ErrorCode.INVALID_REQUEST);
-    }
-
-    private Instant convertToInstant(LocalDateTime dateTime) {
-        return dateTime == null ? null : dateTime.atZone(ZoneId.systemDefault()).toInstant();
     }
 }

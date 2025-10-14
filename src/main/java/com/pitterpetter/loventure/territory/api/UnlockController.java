@@ -1,9 +1,9 @@
 package com.pitterpetter.loventure.territory.api;
 
 import com.pitterpetter.loventure.territory.application.UnlockService;
+import com.pitterpetter.loventure.territory.dto.UnlockedResult;
 import com.pitterpetter.loventure.territory.dto.UnlockRequest;
 import com.pitterpetter.loventure.territory.dto.UnlockResponse;
-import com.pitterpetter.loventure.territory.dto.UnlockedResult;
 import com.pitterpetter.loventure.territory.util.CoupleHeaderResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -14,10 +14,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/territory")
+@RequestMapping("/api/regions")
 @RequiredArgsConstructor
 public class UnlockController {
 
@@ -30,9 +31,14 @@ public class UnlockController {
         return ResponseEntity.ok(unlockService.unlock(coupleId, request));
     }
 
-    @GetMapping("/unlocked")
-    public ResponseEntity<List<UnlockedResult>> unlocked(HttpServletRequest httpServletRequest) {
+    @GetMapping("/search")
+    public ResponseEntity<?> unlocked(HttpServletRequest httpServletRequest,
+                                      @RequestParam(value = "format", defaultValue = "list") String format) {
         Long coupleId = CoupleHeaderResolver.resolveCoupleId(httpServletRequest);
-        return ResponseEntity.ok(unlockService.findUnlockedRegions(coupleId));
+        if ("feature".equalsIgnoreCase(format)) {
+            return ResponseEntity.ok(unlockService.getUnlockedRegionsAsFeature(coupleId));
+        }
+        List<UnlockedResult> results = unlockService.getUnlockedRegions(coupleId);
+        return ResponseEntity.ok(results);
     }
 }
