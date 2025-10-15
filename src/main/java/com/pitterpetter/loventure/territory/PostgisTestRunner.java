@@ -47,9 +47,18 @@ public class PostgisTestRunner implements CommandLineRunner {
             ),
             features AS (
               SELECT
-                f->'properties'->>'SIG_CD' AS sig_cd,
-                f->'properties'->>'SIG_KOR_NM' AS gu_si,
-                f->'properties'->>'CTP_KOR_NM' AS si_do,
+                COALESCE(
+                  f->'properties'->>'sig_cd',
+                  f->'properties'->>'SIG_CD'
+                ) AS sig_cd,
+                COALESCE(
+                  f->'properties'->>'name_ko',
+                  f->'properties'->>'SIG_KOR_NM'
+                ) AS gu_si,
+                COALESCE(
+                  f->'properties'->>'parent',
+                  f->'properties'->>'CTP_KOR_NM'
+                ) AS si_do,
                 ST_SetSRID(
                   ST_GeomFromGeoJSON(f->>'geometry'),
                   4326

@@ -3,13 +3,16 @@ package com.pitterpetter.loventure.territory.domain.coupleregion;
 import com.pitterpetter.loventure.territory.domain.common.BaseEntity;
 import com.pitterpetter.loventure.territory.domain.region.Region;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDateTime;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "couple_region",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"couple_id", "region_id"}))
+    uniqueConstraints = @UniqueConstraint(columnNames = {"couple_id", "region_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,12 +31,14 @@ public class CoupleRegion extends BaseEntity {
     @JoinColumn(name = "region_id", nullable = false)
     private Region region;
 
+    @Builder.Default
     @Column(name = "is_locked", nullable = false)
     private boolean isLocked = true;
 
     @Column(name = "selected_by", length = 10)
     private String selectedBy;  // "male" | "female"
 
+    @Builder.Default
     @Column(name = "unlock_type", length = 10)
     private String unlockType = "INIT";  // INIT | TICKET
 
