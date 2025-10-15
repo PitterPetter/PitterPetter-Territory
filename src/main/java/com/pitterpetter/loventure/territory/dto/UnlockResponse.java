@@ -8,18 +8,14 @@ import java.time.ZoneId;
 public record UnlockResponse(Long coupleId,
                              RegionSummary region,
                              boolean unlocked,
-                             Instant unlockedAt,
-                             String unlockType,
-                             String selectedBy) {
+                             Instant unlockedAt) {
 
     public static UnlockResponse from(CoupleRegion coupleRegion) {
         return new UnlockResponse(
             coupleRegion.getCoupleId(),
             RegionSummary.from(coupleRegion.getRegion()),
             !coupleRegion.isLocked(),
-            toInstant(coupleRegion.getUnlockedAt()),
-            coupleRegion.getUnlockType(),
-            coupleRegion.getSelectedBy()
+            toInstant(coupleRegion.getUnlockedAt())
         );
     }
 
