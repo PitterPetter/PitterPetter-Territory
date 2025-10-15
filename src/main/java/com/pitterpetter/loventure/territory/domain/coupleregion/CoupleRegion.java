@@ -35,13 +35,6 @@ public class CoupleRegion extends BaseEntity {
     @Column(name = "is_locked", nullable = false)
     private boolean isLocked = true;
 
-    @Column(name = "selected_by", length = 10)
-    private String selectedBy;  // "male" | "female"
-
-    @Builder.Default
-    @Column(name = "unlock_type", length = 10)
-    private String unlockType = "INIT";  // INIT | TICKET
-
     @Column(name = "unlocked_at")
     private LocalDateTime unlockedAt;
 }
