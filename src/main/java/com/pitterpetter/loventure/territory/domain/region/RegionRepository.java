@@ -1,0 +1,20 @@
+package com.pitterpetter.loventure.territory.domain.region;
+
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface RegionRepository extends JpaRepository<Region, Long> {
+
+    @Query("""
+        SELECT r FROM Region r
+        WHERE ST_Contains(r.geom, ST_GeomFromText(:point, 4326)) = true
+    """)
+    Optional<Region> findRegionByPoint(@Param("point") String point);
+
+    Optional<Region> findBySigCd(String sigCd);
+
+    @Query("SELECT r FROM Region r WHERE r.gu_si = :name")
+    Optional<Region> findByGuSi(@Param("name") String name);
+}
