@@ -4,16 +4,13 @@ import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegion;
 import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegionRepository;
 import com.pitterpetter.loventure.territory.domain.region.Region;
 import com.pitterpetter.loventure.territory.domain.region.RegionRepository;
-import com.pitterpetter.loventure.territory.dto.UnlockRequest;
-import com.pitterpetter.loventure.territory.dto.UnlockResponse;
-import com.pitterpetter.loventure.territory.dto.UnlockedResult;
+import com.pitterpetter.loventure.territory.dto.*;
 import com.pitterpetter.loventure.territory.exception.ApiException;
 import com.pitterpetter.loventure.territory.exception.ErrorCode;
 import com.pitterpetter.loventure.territory.util.GeoJsonUtils;
 import com.pitterpetter.loventure.territory.util.ValidationUtils;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -46,17 +43,68 @@ public class UnlockService {
     }
 
     /**
-     * 해제된 지역 목록 조회 (리스트)
+     * 해제된 지역 목록 조회 (프론트 요구 JSON 구조로 반환)
      */
     @Transactional(readOnly = true)
-    public List<UnlockedResult> getUnlockedRegions(Long coupleId) {
-        return getUnlockedCoupleRegions(coupleId).stream()
-                .map(UnlockedResult::from)
+    public UnlockedOverviewResponse getUnlockedRegions(Long coupleId) {
+        // 1. 모든 행정구역
+        List<Region> allRegions = regionRepository.findAll();
+
+        // 2. 커플이 해금한 지역 조회
+        List<CoupleRegion> unlockedRegions = coupleRegionRepository.findByCoupleIdAndIsLockedFalse(coupleId);
+        Set<Long> unlockedIds = unlockedRegions.stream()
+                .map(cr -> cr.getRegion().getId())
+                .collect(Collectors.toSet());
+
+        // 3. 시/도 단위 그룹핑
+        Map<String, List<Region>> grouped = allRegions.stream()
+                .collect(Collectors.groupingBy(Region::getSi_do));
+
+        // 4. 각 시/도별 구/군 구성
+        List<CitySummary> cities = grouped.entrySet().stream()
+                .map(entry -> {
+                    String city = entry.getKey();
+                    List<Region> regions = entry.getValue();
+
+                    List<DistrictSummary> districts = regions.stream()
+                            .map(r -> DistrictSummary.builder()
+                                    .id(r.getSigCd())
+                                    .name(r.getGu_si())
+                                    .isLocked(!unlockedIds.contains(r.getId()))
+                                    .description(null) // 필요 시 설명 추가 가능
+                                    .lat(null)
+                                    .lng(null)
+                                    .build())
+                            .collect(Collectors.toList());
+
+                    long unlockedCount = districts.stream()
+                            .filter(d -> !d.isLocked())
+                            .count();
+
+                    return CitySummary.builder()
+                            .cityName(city)
+                            .totalDistricts(districts.size())
+                            .lockedDistricts((int) (districts.size() - unlockedCount))
+                            .unlockedDistricts((int) unlockedCount)
+                            .districts(districts)
+                            .build();
+                })
                 .collect(Collectors.toList());
+
+        // 5. 응답 JSON 구성
+        Map<String, Object> data = Map.of(
+                "totalKeys", unlockedRegions.size(),
+                "cities", cities
+        );
+
+        return UnlockedOverviewResponse.builder()
+                .success(true)
+                .data(data)
+                .build();
     }
 
     /**
-     * 해제된 지역 목록 조회 (GeoJSON FeatureCollection)
+     * GeoJSON FeatureCollection (기존 유지)
      */
     @Transactional(readOnly = true)
     public Map<String, Object> getUnlockedRegionsAsFeature(Long coupleId) {

@@ -1,4 +1,4 @@
-name: CI for Auth Service
+name: CI for Territory Service
 
 on:
   push:
@@ -37,8 +37,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            pitterpetter/region-service:${{ steps.vars.outputs.sha_short }}
-            pitterpetter/region-service:latest
+            pitterpetter/territory-service:${{ steps.vars.outputs.sha_short }}
+            pitterpetter/territory-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -54,7 +54,7 @@ jobs:
       - name: Update image tag in Deployment yaml
         run: |
           cd manifests/charts/loventure
-          # yq를 사용해서 region-service의 deployment.image.tag만 업데이트
+          # yq를 사용해서 territory-service의 deployment.image.tag만 업데이트
           yq eval '.region-service.deployment.image.tag = "${{ steps.vars.outputs.sha_short }}"' -i values.yaml
           git config user.name "llokr1"
           git config user.email "ghdwlsrl100@gachon.ac.kr"
