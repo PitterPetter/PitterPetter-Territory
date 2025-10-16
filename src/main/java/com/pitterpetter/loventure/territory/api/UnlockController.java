@@ -26,7 +26,7 @@ public class UnlockController {
     /**
      * ✅ 지역 해금 API
      * POST /api/regions/unlock
-     * Body: { "sigCd": "41500" } or { "regionId": 123 }
+     * Body 예시: { "regions": "광진구" } or { "sigCd": "41500" } or { "regionId": 123 }
      */
     @PostMapping("/unlock")
     public ResponseEntity<UnlockResponse> unlock(

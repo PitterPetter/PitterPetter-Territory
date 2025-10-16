@@ -1,19 +1,13 @@
+# PitterPetter-Territory/src/main/resources/application.yml
+
 spring:
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:territory}
-    username: ${DB_USERNAME:minjae389}
-    password: ${DB_PASSWORD:1619}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        # ❌ dialect 지정하지 마!
-        show_sql: true
-        format_sql: true
-
-logging:
-  level:
-    org.hibernate.SQL: debug
+  config:
+    import: "optional:configserver:"
+  cloud:
+    config:
+      uri: http://config-server.config-server.svc.cluster.local:80 # Config 서버 주소
+      name: territory-service  # <-- 중요! 서비스 이름 명시
+      label: main
+      fail-fast: false
+  profiles:
+    active: prod # 배포 시 prod 프로필을 기본으로 사용

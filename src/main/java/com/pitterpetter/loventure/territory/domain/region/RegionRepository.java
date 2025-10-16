@@ -14,4 +14,7 @@ public interface RegionRepository extends JpaRepository<Region, Long> {
     Optional<Region> findRegionByPoint(@Param("point") String point);
 
     Optional<Region> findBySigCd(String sigCd);
+
+    @Query("SELECT r FROM Region r WHERE r.gu_si = :name")
+    Optional<Region> findByGuSi(@Param("name") String name);
 }
