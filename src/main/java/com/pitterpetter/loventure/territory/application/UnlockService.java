@@ -159,6 +159,23 @@ public class UnlockService {
             return regionRepository.findBySigCd(request.getSigCd())
                     .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
         }
+        if (request.getRegionName() != null && !request.getRegionName().isBlank()) {
+            String normalized = request.getRegionName().trim();
+
+            Optional<Region> byName = regionRepository.findByGuSi(normalized);
+            if (byName.isEmpty() && normalized.contains(" ")) {
+                String lastSegment = normalized.substring(normalized.lastIndexOf(' ') + 1);
+                byName = regionRepository.findByGuSi(lastSegment);
+            }
+            if (byName.isPresent()) {
+                return byName.get();
+            }
+            if (normalized.matches("\\d+")) {
+                return regionRepository.findBySigCd(normalized)
+                        .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
+            }
+            throw new ApiException(ErrorCode.REGION_NOT_FOUND);
+        }
         throw new ApiException(ErrorCode.INVALID_REQUEST);
     }
 }
