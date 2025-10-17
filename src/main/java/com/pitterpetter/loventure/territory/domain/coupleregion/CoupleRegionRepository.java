@@ -7,11 +7,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CoupleRegionRepository extends JpaRepository<CoupleRegion, Long> {
 
-    Optional<CoupleRegion> findByCoupleIdAndRegion(Long coupleId, Region region);
+    Optional<CoupleRegion> findByCoupleIdAndRegion(String coupleId, Region region);
 
-    Optional<CoupleRegion> findByCoupleIdAndRegion_Id(Long coupleId, String regionId);
+    Optional<CoupleRegion> findByCoupleIdAndRegion_Id(String coupleId, String regionId);
 
-    List<CoupleRegion> findByCoupleId(Long coupleId);
+    List<CoupleRegion> findByCoupleId(String coupleId);
 
-    List<CoupleRegion> findByCoupleIdAndIsLockedFalse(Long coupleId);
+    List<CoupleRegion> findByCoupleIdAndIsLockedFalse(String coupleId);
 }

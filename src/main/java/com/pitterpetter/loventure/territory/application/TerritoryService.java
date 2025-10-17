@@ -23,9 +23,9 @@ public class TerritoryService {
     private final RegionRepository regionRepository;
     private final CoupleRegionRepository coupleRegionRepository;
 
-    public CheckResponse check(Long coupleId, double lon, double lat) {
+    public CheckResponse check(String coupleId, double lon, double lat) {
         ValidationUtils.validateLonLat(lon, lat);
-        Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
+        String verifiedCoupleId = ValidationUtils.requireNonBlank(coupleId, ErrorCode.INVALID_REQUEST);
         Optional<Region> regionOptional = findRegionByPoint(lon, lat);
 
         if (regionOptional.isEmpty()) {

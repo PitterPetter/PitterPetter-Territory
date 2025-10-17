@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
-public record UnlockResponse(Long coupleId,
+public record UnlockResponse(String coupleId,
                              RegionSummary region,
                              boolean unlocked,
                              Instant unlockedAt) {

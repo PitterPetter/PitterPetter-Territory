@@ -38,4 +38,15 @@ public final class ValidationUtils {
         }
         return value;
     }
+
+    public static String requireNonBlank(String value, ErrorCode errorCode) {
+        if (value == null) {
+            throw new ApiException(errorCode);
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            throw new ApiException(errorCode);
+        }
+        return trimmed;
+    }
 }

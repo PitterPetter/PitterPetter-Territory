@@ -13,3 +13,7 @@ spring:
       hibernate:
         show_sql: true
         format_sql: true
+
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL:http://localhost:8081}
