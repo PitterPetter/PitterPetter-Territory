@@ -34,9 +34,6 @@ dependencies {
     implementation 'org.postgresql:postgresql'
     implementation 'org.hibernate.orm:hibernate-spatial:6.6.29.Final'
 
-    // Redis
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
     // .env 지원
     implementation 'io.github.cdimascio:dotenv-java:3.0.0'
 
