@@ -1,7 +1,5 @@
 package com.pitterpetter.loventure.territory.util;
 
-import com.pitterpetter.loventure.territory.exception.ApiException;
-import com.pitterpetter.loventure.territory.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
@@ -13,10 +11,8 @@ import org.springframework.stereotype.Component;
 @Profile("local") // 🔥 local 프로필에서만 활성화
 public class CoupleHeaderResolverLocal extends CoupleHeaderResolver {
 
-    @Value("${spring.jwt.secret:}")
-    private String jwtSecret;
-
-    public CoupleHeaderResolverLocal(@Value("${spring.jwt.secret:}") String jwtSecret) {
+    // ✅ @Value를 생성자 파라미터에 직접 붙여야 함
+    public CoupleHeaderResolverLocal(@Value("${jwt.secret:local-test-secret}") String jwtSecret) {
         super(jwtSecret);
     }
 
