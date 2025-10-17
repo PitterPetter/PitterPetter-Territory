@@ -55,9 +55,9 @@ jobs:
         run: |
           cd manifests/charts/loventure
           # yq를 사용해서 territory-service의 deployment.image.tag만 업데이트
-          yq eval '.region-service.deployment.image.tag = "${{ steps.vars.outputs.sha_short }}"' -i values.yaml
-          git config user.name "llokr1"
-          git config user.email "ghdwlsrl100@gachon.ac.kr"
+          yq eval '.territory-service.deployment.image.tag = "${{ steps.vars.outputs.sha_short }}"' -i values.yaml
+          git config user.name "minjae23"
+          git config user.email "010626kmj@gmail.com"
           # 변경사항 확인 후 커밋
           if git diff --quiet values.yaml; then
             echo "No changes detected in values.yaml"
@@ -65,6 +65,6 @@ jobs:
             echo "Changes detected:"
             git diff values.yaml
             git add values.yaml
-            git commit -m "Update region-service image to ${{ steps.vars.outputs.sha_short }}"
+            git commit -m "Update territory-service image to ${{ steps.vars.outputs.sha_short }}"
             git push origin main
           fi

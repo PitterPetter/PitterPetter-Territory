@@ -1,36 +1,42 @@
 package com.pitterpetter.loventure.territory.config;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
+public class WebConfig {
 
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                // 허용할 Origin (배포 환경 + 로컬 개발 환경)
-                .allowedOriginPatterns(
-                        "https://loventure.us",
-                        "https://*.loventure.us",
-                        "http://localhost:*",
-                        "http://127.0.0.1:*"
-                )
+    @Bean
+    public CorsFilter corsFilter() {
+        CorsConfiguration config = new CorsConfiguration();
 
-                // 허용할 HTTP 메서드
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+        // 허용 Origin: 프론트, Auth, AI 등 모든 MSA 호출 허용
+        config.addAllowedOriginPattern("https://loventure.us");
+        config.addAllowedOriginPattern("https://*.loventure.us");
+        config.addAllowedOriginPattern("http://localhost:*");
+        config.addAllowedOriginPattern("http://127.0.0.1:*");
 
-                // 허용할 요청 헤더
-                .allowedHeaders("*")
+        // 메서드, 헤더 전부 허용
+        config.addAllowedMethod("*");
+        config.addAllowedHeader("*");
 
-                // 응답 시 노출할 커스텀 헤더 (JWT나 couple-id 등)
-                .exposedHeaders("X-User-Id", "X-Couple-Id")
+        // JWT나 쿠키 등 인증 정보 전달 허용
+        config.setAllowCredentials(true);
 
-                // 쿠키 / 인증정보 포함 허용
-                .allowCredentials(true)
+        // 응답 시 노출할 헤더
+        config.addExposedHeader("X-User-Id");
+        config.addExposedHeader("X-Couple-Id");
 
-                // preflight 캐시 시간 (1시간)
-                .maxAge(3600);
+        // preflight 캐시 (1시간)
+        config.setMaxAge(3600L);
+
+        // 전역 등록
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+
+        return new CorsFilter(source);
     }
 }
