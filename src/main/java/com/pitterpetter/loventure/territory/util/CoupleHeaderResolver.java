@@ -34,7 +34,7 @@ public class CoupleHeaderResolver {
 
     private final Key secretKey;
 
-    public CoupleHeaderResolver(@Value("${spring.jwt.secret}") String secret) {
+    public CoupleHeaderResolver(@Value("${jwt.secret}") String secret) {
         Key keyTemp;
         try {
             // Auth 서비스와 동일한 secret 키(Base64 인코딩된 값)를 디코딩
