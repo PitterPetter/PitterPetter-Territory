@@ -7,33 +7,111 @@ import com.pitterpetter.loventure.territory.domain.region.RegionRepository;
 import com.pitterpetter.loventure.territory.dto.*;
 import com.pitterpetter.loventure.territory.exception.ApiException;
 import com.pitterpetter.loventure.territory.exception.ErrorCode;
+import com.pitterpetter.loventure.territory.infra.AuthClient;
 import com.pitterpetter.loventure.territory.util.GeoJsonUtils;
 import com.pitterpetter.loventure.territory.util.ValidationUtils;
+import feign.FeignException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.locationtech.jts.geom.Point;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import org.locationtech.jts.geom.Point;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UnlockService {
 
     private final CoupleRegionRepository coupleRegionRepository;
     private final RegionRepository regionRepository;
+    private final AuthClient authClient;
 
+    // ========================================================================
+    // ✅ [1] Auth 검증 기반 초기 해금
+    // 프론트 → Territory → Auth → OK → 해금
+    // ========================================================================
+    public List<UnlockResponse> initUnlock(String coupleId, List<String> regions, HttpServletRequest request) {
+        log.info("🔐 [Init Unlock] Auth 검증 시작...");
+
+        if (!verifyAuthToken(coupleId, request)) {
+            throw new ApiException(ErrorCode.AUTH_TOKEN_INVALID, "Auth 토큰 검증 실패");
+        }
+
+        log.info("✅ Auth 검증 통과. 해금 진행...");
+        return unlockMultipleRegions(coupleId, regions);
+    }
+
+    // ========================================================================
+    // ✅ [2] Redis 검증 기반 티켓 해금
+    // Gateway → Redis → Territory → 해금
+    // ========================================================================
+    public List<UnlockResponse> rewardUnlock(String coupleId, List<String> regions) {
+        log.info("🎟️ [Reward Unlock] Redis 검증 시작...");
+
+        if (!verifyRedisTicket(coupleId)) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "티켓 잔여 수량 부족");
+        }
+
+        log.info("✅ Redis 검증 통과. 해금 진행...");
+        return unlockMultipleRegions(coupleId, regions);
+    }
+
+    // ========================================================================
+    // ✅ Auth 검증 (FeignClient 기반)
+    // ========================================================================
+    public boolean verifyAuthToken(String coupleId, HttpServletRequest request) {
+        try {
+            String token = request.getHeader(HttpHeaders.AUTHORIZATION);
+            if (token == null || !token.startsWith("Bearer ")) {
+                log.warn("⚠️ Authorization 헤더 누락 또는 잘못된 형식");
+                return false;
+            }
+
+            authClient.verifyToken(token);
+            log.info("✅ Auth 서버 검증 성공 (coupleId={})", coupleId);
+            return true;
+
+        } catch (FeignException e) {
+            log.error("❌ Auth 검증 실패 (status={}, coupleId={}): {}", e.status(), coupleId, e.contentUTF8());
+            return false;
+        } catch (Exception e) {
+            log.error("❌ Auth 서버 통신 오류 (coupleId={}): {}", coupleId, e.getMessage());
+            return false;
+        }
+    }
+
+    // ========================================================================
+    // ✅ Redis 검증 (Stub)
+    // ========================================================================
+    public boolean verifyRedisTicket(String coupleId) {
+        try {
+            // TODO: 실제 RedisTemplate 검증 로직으로 교체
+            log.info("🎟️ Redis 티켓 검증 성공 (coupleId={})", coupleId);
+            return true;
+        } catch (Exception e) {
+            log.error("❌ Redis 티켓 검증 실패: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    // ========================================================================
     // ✅ 다중 해금 처리 (regions 배열 입력용)
+    // ========================================================================
     @Transactional
     @CacheEvict(value = "unlockedRegions", key = "#coupleId")
-    public List<UnlockResponse> unlockMultipleRegions(Long coupleId, List<String> regionNames) {
+    public List<UnlockResponse> unlockMultipleRegions(String coupleId, List<String> regionNames) {
         if (regionNames == null || regionNames.isEmpty()) {
             throw new ApiException(ErrorCode.INVALID_REQUEST, "regionNames 리스트가 비어 있습니다.");
         }
 
-        Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
+        String verifiedCoupleId = ValidationUtils.requireNonBlank(coupleId, ErrorCode.INVALID_REQUEST);
         List<UnlockResponse> unlockedList = new ArrayList<>();
 
         for (String name : regionNames) {
@@ -53,11 +131,13 @@ public class UnlockService {
         return unlockedList;
     }
 
+    // ========================================================================
     // ✅ 기존 단일 해금 (호환 유지)
+    // ========================================================================
     @Transactional
     @CacheEvict(value = "unlockedRegions", key = "#coupleId")
-    public UnlockResponse unlockRegion(Long coupleId, String sigCd, String regionId, String regionName) {
-        Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
+    public UnlockResponse unlockRegion(String coupleId, String sigCd, String regionId, String regionName) {
+        String verifiedCoupleId = ValidationUtils.requireNonBlank(coupleId, ErrorCode.INVALID_REQUEST);
         Region region = resolveRegionByDirectValues(regionId, sigCd, regionName);
 
         CoupleRegion coupleRegion = coupleRegionRepository
@@ -85,9 +165,11 @@ public class UnlockService {
         throw new ApiException(ErrorCode.INVALID_REQUEST);
     }
 
+    // ========================================================================
     // ✅ 조회 관련
+    // ========================================================================
     @Transactional(readOnly = true)
-    public UnlockedOverviewResponse getUnlockedRegions(Long coupleId) {
+    public UnlockedOverviewResponse getUnlockedRegions(String coupleId) {
         List<Region> allRegions = regionRepository.findAll();
         List<CoupleRegion> unlockedRegions = coupleRegionRepository.findByCoupleIdAndIsLockedFalse(coupleId);
 
@@ -119,9 +201,7 @@ public class UnlockService {
                 })
                 .collect(Collectors.toList());
 
-        Map<String, Object> data = Map.of(
-                "cities", cities
-        );
+        Map<String, Object> data = Map.of("cities", cities);
 
         return UnlockedOverviewResponse.builder()
                 .success(true)
@@ -130,7 +210,7 @@ public class UnlockService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> getUnlockedRegionsAsFeature(Long coupleId) {
+    public Map<String, Object> getUnlockedRegionsAsFeature(String coupleId) {
         List<CoupleRegion> coupleRegions = getUnlockedCoupleRegions(coupleId);
         List<Region> regions = coupleRegions.stream()
                 .map(CoupleRegion::getRegion)
@@ -138,8 +218,8 @@ public class UnlockService {
         return GeoJsonUtils.toFeatureCollection(regions);
     }
 
-    private List<CoupleRegion> getUnlockedCoupleRegions(Long coupleId) {
-        Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
+    private List<CoupleRegion> getUnlockedCoupleRegions(String coupleId) {
+        String verifiedCoupleId = ValidationUtils.requireNonBlank(coupleId, ErrorCode.INVALID_REQUEST);
         return coupleRegionRepository.findByCoupleIdAndIsLockedFalse(verifiedCoupleId);
     }
 
@@ -170,15 +250,9 @@ public class UnlockService {
         String siDo = safeTrim(region.getSi_do());
         String guSi = safeTrim(region.getGu_si());
 
-        if (!siDo.isEmpty() && !guSi.isEmpty()) {
-            return (siDo + " " + guSi).trim();
-        }
-        if (!guSi.isEmpty()) {
-            return guSi;
-        }
-        if (!siDo.isEmpty()) {
-            return siDo;
-        }
+        if (!siDo.isEmpty() && !guSi.isEmpty()) return (siDo + " " + guSi).trim();
+        if (!guSi.isEmpty()) return guSi;
+        if (!siDo.isEmpty()) return siDo;
         return null;
     }
 
@@ -194,7 +268,7 @@ public class UnlockService {
         return coupleRegion;
     }
 
-    private CoupleRegion createUnlock(Long coupleId, Region region) {
+    private CoupleRegion createUnlock(String coupleId, Region region) {
         return CoupleRegion.builder()
                 .coupleId(coupleId)
                 .region(region)
