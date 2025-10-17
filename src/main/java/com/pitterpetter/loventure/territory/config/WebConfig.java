@@ -23,12 +23,17 @@ public class WebConfig {
         config.addAllowedMethod("*");
         config.addAllowedHeader("*");
 
-        // JWT 헤더 전달 허용
+        // JWT나 쿠키 등 인증 정보 전달 허용
         config.setAllowCredentials(true);
+
+        // 응답 시 노출할 헤더
+        config.addExposedHeader("X-User-Id");
+        config.addExposedHeader("X-Couple-Id");
 
         // preflight 캐시 (1시간)
         config.setMaxAge(3600L);
 
+        // 전역 등록
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
 

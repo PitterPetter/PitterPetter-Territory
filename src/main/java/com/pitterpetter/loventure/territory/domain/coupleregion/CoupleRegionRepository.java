@@ -9,7 +9,7 @@ public interface CoupleRegionRepository extends JpaRepository<CoupleRegion, Long
 
     Optional<CoupleRegion> findByCoupleIdAndRegion(Long coupleId, Region region);
 
-    Optional<CoupleRegion> findByCoupleIdAndRegion_Id(Long coupleId, Long regionId);
+    Optional<CoupleRegion> findByCoupleIdAndRegion_Id(Long coupleId, String regionId);
 
     List<CoupleRegion> findByCoupleId(Long coupleId);
 

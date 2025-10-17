@@ -29,7 +29,7 @@ public class PostgisTestRunner implements CommandLineRunner {
         // region 테이블 생성 (없으면)
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS region (
-                id BIGSERIAL PRIMARY KEY,
+                id VARCHAR(255) PRIMARY KEY,
                 sig_cd VARCHAR(10) UNIQUE,
                 si_do VARCHAR(30),
                 gu_si VARCHAR(30),
@@ -65,8 +65,8 @@ public class PostgisTestRunner implements CommandLineRunner {
                 )::geometry(MultiPolygon,4326) AS geom
               FROM fc, jsonb_array_elements(fc.j->'features') AS f
             )
-            INSERT INTO region (sig_cd, si_do, gu_si, geom)
-            SELECT sig_cd, si_do, gu_si, ST_MakeValid(ST_Multi(geom))
+            INSERT INTO region (id, sig_cd, si_do, gu_si, geom)
+            SELECT sig_cd, sig_cd, si_do, gu_si, ST_MakeValid(ST_Multi(geom))
             FROM features
             ON CONFLICT (sig_cd) DO NOTHING;
         """;
