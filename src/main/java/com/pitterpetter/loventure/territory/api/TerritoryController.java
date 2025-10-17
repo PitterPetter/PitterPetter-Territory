@@ -3,6 +3,8 @@ package com.pitterpetter.loventure.territory.api;
 import com.pitterpetter.loventure.territory.application.TerritoryService;
 import com.pitterpetter.loventure.territory.dto.CheckResponse;
 import com.pitterpetter.loventure.territory.dto.LookupResponse;
+import com.pitterpetter.loventure.territory.exception.ApiException;
+import com.pitterpetter.loventure.territory.exception.ErrorCode;
 import com.pitterpetter.loventure.territory.util.CoupleHeaderResolver;
 import com.pitterpetter.loventure.territory.util.ValidationUtils;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,8 +38,10 @@ public class TerritoryController {
         ValidationUtils.validateLonLat(lon, lat);
 
         // ✅ JWT에서 coupleId 추출
-        String coupleIdStr = coupleHeaderResolver.resolveCoupleId(request);
-        Long coupleId = parseCoupleIdSafely(coupleIdStr);
+        String coupleId = normalizeCoupleId(coupleHeaderResolver.resolveCoupleId(request));
+        if (coupleId == null) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "coupleId 헤더가 비어 있습니다.");
+        }
 
         return ResponseEntity.ok(territoryService.check(coupleId, lon, lat));
     }
@@ -64,23 +68,24 @@ public class TerritoryController {
      */
     @GetMapping("/status")
     public ResponseEntity<?> getStatus(HttpServletRequest request) {
-        String coupleIdStr = coupleHeaderResolver.resolveCoupleId(request);
-        Long coupleId = parseCoupleIdSafely(coupleIdStr);
+        String coupleId = normalizeCoupleId(coupleHeaderResolver.resolveCoupleId(request));
+        if (coupleId == null) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "coupleId 헤더가 비어 있습니다.");
+        }
 
         return ResponseEntity.ok(Map.of(
-                "coupleId", coupleIdStr,
-                "coupleIdLong", coupleId
+                "coupleId", coupleId
         ));
     }
 
     /**
      * ✅ JWT 내부 coupleId 문자열이 Long 변환 불가할 경우 fallback
      */
-    private Long parseCoupleIdSafely(String coupleId) {
-        try {
-            return Long.parseLong(coupleId);
-        } catch (NumberFormatException e) {
-            return null; // 문자열일 경우 그대로 유지
+    private String normalizeCoupleId(String coupleId) {
+        if (coupleId == null) {
+            return null;
         }
+        String trimmed = coupleId.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

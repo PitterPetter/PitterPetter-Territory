@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 public record UnlockedResult(Long coupleRegionId,
-                             Long coupleId,
+                             String coupleId,
                              RegionSummary region,
                              Instant unlockedAt) {
 

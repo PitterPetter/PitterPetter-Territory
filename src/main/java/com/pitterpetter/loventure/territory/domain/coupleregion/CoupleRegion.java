@@ -25,7 +25,7 @@ public class CoupleRegion extends BaseEntity {
     private Long id;
 
     @Column(name = "couple_id", nullable = false)
-    private Long coupleId;
+    private String coupleId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "region_id", nullable = false)
