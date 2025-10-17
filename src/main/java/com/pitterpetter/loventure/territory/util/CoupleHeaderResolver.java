@@ -1,103 +1,106 @@
 package com.pitterpetter.loventure.territory.util;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pitterpetter.loventure.territory.exception.ApiException;
 import com.pitterpetter.loventure.territory.exception.ErrorCode;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.http.HttpServletRequest;
-import java.io.IOException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.security.Key;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
-public final class CoupleHeaderResolver {
+/**
+ * JWT Authorization 헤더에서 coupleId를 안전하게 추출하는 Resolver.
+ * - Auth 서비스에서 발급된 JWT 토큰을 Territory 서비스에서 검증 및 해석
+ * - Base64 단순 디코딩이 아닌 HMAC-SHA256 서명 검증 수행
+ */
+@Slf4j
+@Component
+public class CoupleHeaderResolver {
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
-    };
-    private static final List<String> COUPLE_ID_CLAIM_KEYS = List.of(
-        "coupleId",
-        "couple_id",
-        "coupleID",
-        "couple",
-        "couple-id"
+    private static final List<String> COUPLE_ID_KEYS = List.of(
+            "coupleId", "couple_id", "coupleID", "couple", "couple-id"
     );
 
-    private CoupleHeaderResolver() {
+    private final Key secretKey;
+
+    public CoupleHeaderResolver(@Value("${spring.jwt.secret}") String secret) {
+        Key keyTemp;
+        try {
+            // Auth 서비스와 동일한 secret 키(Base64 인코딩된 값)를 디코딩
+            byte[] decodedKey = Base64.getDecoder().decode(secret);
+            keyTemp = Keys.hmacShaKeyFor(decodedKey);
+            log.info("✅ JWT 시크릿 키(Base64) 로드 완료 (길이: {})", decodedKey.length);
+        } catch (IllegalArgumentException e) {
+            // Base64 decode 실패 시 문자열을 그대로 사용 (fallback)
+            keyTemp = Keys.hmacShaKeyFor(secret.getBytes());
+            log.warn("⚠️ Base64 디코딩 실패, 문자열 기반 키로 대체 (길이: {})", secret.getBytes().length);
+        }
+        this.secretKey = keyTemp;
     }
 
-    public static Long resolveCoupleId(HttpServletRequest request) {
-        String token = extractBearerToken(request.getHeader(AUTHORIZATION_HEADER));
-        Map<String, Object> payload = decodePayload(token);
-        Long coupleId = extractCoupleId(payload)
-            .orElseThrow(() -> new ApiException(ErrorCode.AUTH_TOKEN_INVALID));
-        return ValidationUtils.requirePositive(coupleId, ErrorCode.AUTH_TOKEN_INVALID);
-    }
+    /**
+     * 요청 헤더에서 JWT를 추출하고 서명 검증 후 coupleId 반환
+     */
+    public String resolveCoupleId(HttpServletRequest request) {
+        String authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
 
-    private static String extractBearerToken(String authorizationHeader) {
-        if (authorizationHeader == null || authorizationHeader.isBlank()) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_PREFIX)) {
             throw new ApiException(ErrorCode.AUTH_HEADER_MISSING);
         }
-        if (!authorizationHeader.startsWith(BEARER_PREFIX)) {
-            throw new ApiException(ErrorCode.AUTH_TOKEN_INVALID);
-        }
+
         String token = authorizationHeader.substring(BEARER_PREFIX.length()).trim();
         if (token.isEmpty()) {
             throw new ApiException(ErrorCode.AUTH_TOKEN_INVALID);
         }
-        return token;
-    }
 
-    private static Map<String, Object> decodePayload(String token) {
-        String[] parts = token.split("\\.");
-        if (parts.length < 2) {
-            throw new ApiException(ErrorCode.AUTH_TOKEN_INVALID);
-        }
         try {
-            byte[] payloadBytes = Base64.getUrlDecoder().decode(applyPadding(parts[1]));
-            return OBJECT_MAPPER.readValue(payloadBytes, MAP_TYPE);
-        } catch (IllegalArgumentException | IOException exception) {
+            // ✅ 토큰 파싱 및 서명 검증
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(secretKey)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+
+            // ✅ coupleId 추출
+            String coupleId = extractCoupleId(claims)
+                    .orElseThrow(() -> new ApiException(ErrorCode.AUTH_TOKEN_INVALID));
+
+            log.debug("✅ JWT 검증 성공, coupleId = {}", coupleId);
+            return coupleId;
+
+        } catch (SignatureException e) {
+            log.error("❌ JWT 서명 검증 실패: {}", e.getMessage());
+            throw new ApiException(ErrorCode.AUTH_TOKEN_INVALID);
+        } catch (ExpiredJwtException e) {
+            log.error("❌ JWT 토큰 만료: {}", e.getMessage());
+            throw new ApiException(ErrorCode.AUTH_TOKEN_EXPIRED);
+        } catch (Exception e) {
+            log.error("❌ JWT 파싱 오류: {}", e.getMessage(), e);
             throw new ApiException(ErrorCode.AUTH_TOKEN_INVALID);
         }
     }
 
-    private static Optional<Long> extractCoupleId(Map<String, Object> payload) {
-        for (String key : COUPLE_ID_CLAIM_KEYS) {
-            Optional<Long> value = toLong(payload.get(key));
-            if (value.isPresent()) {
-                return value;
+    /**
+     * Claims 객체에서 coupleId를 다양한 키 이름으로 탐색
+     */
+    private Optional<String> extractCoupleId(Claims claims) {
+        for (String key : COUPLE_ID_KEYS) {
+            Object value = claims.get(key);
+            if (value != null) {
+                return Optional.of(value.toString());
             }
         }
-        return toLong(payload.get("sub"));
-    }
-
-    private static Optional<Long> toLong(Object value) {
-        if (value == null) {
-            return Optional.empty();
-        }
-        if (value instanceof Number number) {
-            return Optional.of(number.longValue());
-        }
-        if (value instanceof String stringValue) {
-            return ValidationUtils.parseLong(stringValue);
-        }
-        if (value instanceof List<?> list && !list.isEmpty()) {
-            return toLong(list.get(0));
-        }
         return Optional.empty();
-    }
-
-    private static String applyPadding(String value) {
-        int remainder = value.length() % 4;
-        if (remainder == 0) {
-            return value;
-        }
-        if (remainder == 1) {
-            throw new IllegalArgumentException("Invalid base64 length");
-        }
-        return value + "====".substring(remainder);
     }
 }
