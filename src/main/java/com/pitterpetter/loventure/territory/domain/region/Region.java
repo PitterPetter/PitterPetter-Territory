@@ -15,8 +15,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class Region {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "id", nullable = false)
+    private String id;
 
     @Column(name = "sig_cd", length = 10, unique = true)
     private String sigCd; // 행정 코드
