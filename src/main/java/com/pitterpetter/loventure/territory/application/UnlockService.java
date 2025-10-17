@@ -9,13 +9,14 @@ import com.pitterpetter.loventure.territory.exception.ApiException;
 import com.pitterpetter.loventure.territory.exception.ErrorCode;
 import com.pitterpetter.loventure.territory.util.GeoJsonUtils;
 import com.pitterpetter.loventure.territory.util.ValidationUtils;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+import org.locationtech.jts.geom.Point;
 
 @Service
 @RequiredArgsConstructor
@@ -24,33 +25,39 @@ public class UnlockService {
     private final CoupleRegionRepository coupleRegionRepository;
     private final RegionRepository regionRepository;
 
-    /**
-     * ✅ 기존 Unlock 방식 (Request에 regionId, sigCd, regionName 중 하나 포함)
-     */
+    // ✅ 다중 해금 처리 (regions 배열 입력용)
     @Transactional
     @CacheEvict(value = "unlockedRegions", key = "#coupleId")
-    public UnlockResponse unlock(Long coupleId, UnlockRequest request) {
+    public List<UnlockResponse> unlockMultipleRegions(Long coupleId, List<String> regionNames) {
+        if (regionNames == null || regionNames.isEmpty()) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "regionNames 리스트가 비어 있습니다.");
+        }
+
         Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
-        Region region = resolveRegion(request);
+        List<UnlockResponse> unlockedList = new ArrayList<>();
 
-        CoupleRegion coupleRegion = coupleRegionRepository
-                .findByCoupleIdAndRegion(verifiedCoupleId, region)
-                .map(this::updateUnlock)
-                .orElseGet(() -> createUnlock(verifiedCoupleId, region));
+        for (String name : regionNames) {
+            regionRepository.findByGuSi(name.trim()).ifPresentOrElse(region -> {
+                CoupleRegion cr = coupleRegionRepository
+                        .findByCoupleIdAndRegion(verifiedCoupleId, region)
+                        .map(this::updateUnlock)
+                        .orElseGet(() -> createUnlock(verifiedCoupleId, region));
 
-        CoupleRegion saved = coupleRegionRepository.save(coupleRegion);
-        return UnlockResponse.from(saved);
+                CoupleRegion saved = coupleRegionRepository.save(cr);
+                unlockedList.add(UnlockResponse.from(saved));
+
+            }, () -> {
+                throw new ApiException(ErrorCode.REGION_NOT_FOUND, "존재하지 않는 지역명: " + name);
+            });
+        }
+        return unlockedList;
     }
 
-    /**
-     * ✅ regionName 하나만 받아서 자동 매핑 처리하는 Unlock 버전
-     */
+    // ✅ 기존 단일 해금 (호환 유지)
     @Transactional
     @CacheEvict(value = "unlockedRegions", key = "#coupleId")
     public UnlockResponse unlockRegion(Long coupleId, String sigCd, String regionId, String regionName) {
         Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
-
-        // regionId, sigCd, regionName 중 우선순위로 Region 조회
         Region region = resolveRegionByDirectValues(regionId, sigCd, regionName);
 
         CoupleRegion coupleRegion = coupleRegionRepository
@@ -62,11 +69,6 @@ public class UnlockService {
         return UnlockResponse.from(saved);
     }
 
-    // -------------------- 공통 조회 로직 -------------------- //
-
-    /**
-     * ✅ regionId / sigCd / regionName 으로 Region 직접 조회
-     */
     private Region resolveRegionByDirectValues(String regionId, String sigCd, String regionName) {
         if (regionId != null && !regionId.isBlank()) {
             return regionRepository.findById(regionId.trim())
@@ -77,53 +79,18 @@ public class UnlockService {
                     .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
         }
         if (regionName != null && !regionName.isBlank()) {
-            String normalized = regionName.trim();
-            return regionRepository.findByGuSi(normalized)
+            return regionRepository.findByGuSi(regionName.trim())
                     .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
         }
         throw new ApiException(ErrorCode.INVALID_REQUEST);
     }
 
-    /**
-     * ✅ 기존 UnlockRequest 기반 Region 조회 (sigCd, regionId, regionName 대응)
-     */
-    private Region resolveRegion(UnlockRequest request) {
-        if (request.getRegionId() != null && !request.getRegionId().isBlank()) {
-            return regionRepository.findById(request.getRegionId().trim())
-                    .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
-        }
-
-        if (request.getSigCd() != null && !request.getSigCd().isBlank()) {
-            return regionRepository.findBySigCd(request.getSigCd())
-                    .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
-        }
-
-        if (request.getRegionName() != null && !request.getRegionName().isBlank()) {
-            String normalized = request.getRegionName().trim();
-            Optional<Region> byName = regionRepository.findByGuSi(normalized);
-
-            if (byName.isEmpty() && normalized.contains(" ")) {
-                String lastSegment = normalized.substring(normalized.lastIndexOf(' ') + 1);
-                byName = regionRepository.findByGuSi(lastSegment);
-            }
-            if (byName.isPresent()) return byName.get();
-
-            if (normalized.matches("\\d+")) {
-                return regionRepository.findBySigCd(normalized)
-                        .orElseThrow(() -> new ApiException(ErrorCode.REGION_NOT_FOUND));
-            }
-            throw new ApiException(ErrorCode.REGION_NOT_FOUND);
-        }
-
-        throw new ApiException(ErrorCode.INVALID_REQUEST);
-    }
-
-    // -------------------- 조회 관련 -------------------- //
-
+    // ✅ 조회 관련
     @Transactional(readOnly = true)
     public UnlockedOverviewResponse getUnlockedRegions(Long coupleId) {
         List<Region> allRegions = regionRepository.findAll();
         List<CoupleRegion> unlockedRegions = coupleRegionRepository.findByCoupleIdAndIsLockedFalse(coupleId);
+
         Set<String> unlockedIds = unlockedRegions.stream()
                 .map(cr -> cr.getRegion().getId())
                 .collect(Collectors.toSet());
@@ -137,11 +104,7 @@ public class UnlockService {
                     List<Region> regions = entry.getValue();
 
                     List<DistrictSummary> districts = regions.stream()
-                            .map(r -> DistrictSummary.builder()
-                                    .id(r.getSigCd())
-                                    .name(r.getGu_si())
-                                    .isLocked(!unlockedIds.contains(r.getId()))
-                                    .build())
+                            .map(region -> toDistrictSummary(region, unlockedIds))
                             .collect(Collectors.toList());
 
                     long unlockedCount = districts.stream().filter(d -> !d.isLocked()).count();
@@ -157,7 +120,6 @@ public class UnlockService {
                 .collect(Collectors.toList());
 
         Map<String, Object> data = Map.of(
-                "totalKeys", unlockedRegions.size(),
                 "cities", cities
         );
 
@@ -179,6 +141,49 @@ public class UnlockService {
     private List<CoupleRegion> getUnlockedCoupleRegions(Long coupleId) {
         Long verifiedCoupleId = ValidationUtils.requirePositive(coupleId, ErrorCode.INVALID_REQUEST);
         return coupleRegionRepository.findByCoupleIdAndIsLockedFalse(verifiedCoupleId);
+    }
+
+    private DistrictSummary toDistrictSummary(Region region, Set<String> unlockedIds) {
+        boolean isLocked = !unlockedIds.contains(region.getId());
+        Double lat = null;
+        Double lng = null;
+
+        if (region.getGeom() != null && !region.getGeom().isEmpty()) {
+            Point centroid = region.getGeom().getCentroid();
+            if (centroid != null && !centroid.isEmpty()) {
+                lng = centroid.getX();
+                lat = centroid.getY();
+            }
+        }
+
+        return DistrictSummary.builder()
+                .id(region.getId())
+                .name(region.getGu_si())
+                .isLocked(isLocked)
+                .description(buildRegionDescription(region))
+                .lat(lat)
+                .lng(lng)
+                .build();
+    }
+
+    private String buildRegionDescription(Region region) {
+        String siDo = safeTrim(region.getSi_do());
+        String guSi = safeTrim(region.getGu_si());
+
+        if (!siDo.isEmpty() && !guSi.isEmpty()) {
+            return (siDo + " " + guSi).trim();
+        }
+        if (!guSi.isEmpty()) {
+            return guSi;
+        }
+        if (!siDo.isEmpty()) {
+            return siDo;
+        }
+        return null;
+    }
+
+    private String safeTrim(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private CoupleRegion updateUnlock(CoupleRegion coupleRegion) {
