@@ -116,7 +116,8 @@ public class UnlockService {
     }
 
     // ========================================================================
-    // ✅ Auth Service에서 티켓 차감 요청
+    // ✅ Auth Service에서 티켓 차감 및 Rock 완료 요청 (init unlock용)
+
     // ========================================================================
     private boolean consumeTicketFromAuthService(String coupleId, HttpServletRequest request) {
         try {
@@ -126,16 +127,16 @@ public class UnlockService {
                 return false;
             }
 
-            // Auth Service에 티켓 차감 요청
-            authClient.consumeTicket(coupleId, token);
-            log.info("✅ Auth Service에서 티켓 차감 성공 (coupleId={})", coupleId);
+            // Auth Service에 티켓 차감 및 Rock 완료 요청 (init unlock용)
+            authClient.consumeTicketAndCompleteRock(coupleId, token);
+            log.info("✅ Auth Service에서 티켓 차감 및 Rock 완료 성공 (coupleId={})", coupleId);
             return true;
 
         } catch (FeignException e) {
-            log.error("❌ 티켓 차감 실패 (status={}, coupleId={}): {}", e.status(), coupleId, e.contentUTF8());
+            log.error("❌ 티켓 차감 및 Rock 완료 실패 (status={}, coupleId={}): {}", e.status(), coupleId, e.contentUTF8());
             return false;
         } catch (Exception e) {
-            log.error("❌ Auth Service 티켓 차감 통신 오류 (coupleId={}): {}", coupleId, e.getMessage());
+            log.error("❌ Auth Service 티켓 차감 및 Rock 완료 통신 오류 (coupleId={}): {}", coupleId, e.getMessage());
             return false;
         }
     }

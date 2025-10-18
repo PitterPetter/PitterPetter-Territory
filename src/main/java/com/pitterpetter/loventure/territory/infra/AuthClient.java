@@ -28,11 +28,21 @@ public interface AuthClient {
     );
 
     /**
-     * ✅ 티켓 차감 요청
+     * ✅ 티켓 차감 요청 (Gateway용)
      * Territory Service에서 Auth Service로 티켓 차감 요청
      */
     @PostMapping("/api/couples/{coupleId}/ticket/consume")
     void consumeTicket(
+            @PathVariable("coupleId") String coupleId,
+            @RequestHeader("Authorization") String token
+    );
+
+    /**
+     * ✅ 티켓 차감 및 Rock 완료 요청 (init unlock용)
+     * Territory Service에서 초기 해금 시 사용자 상태도 함께 변경
+     */
+    @PostMapping("/api/couples/{coupleId}/ticket/consume-and-complete")
+    void consumeTicketAndCompleteRock(
             @PathVariable("coupleId") String coupleId,
             @RequestHeader("Authorization") String token
     );
