@@ -117,6 +117,7 @@ public class UnlockService {
 
     // ========================================================================
     // ✅ Auth Service에서 티켓 차감 및 Rock 완료 요청 (init unlock용)
+
     // ========================================================================
     private boolean consumeTicketFromAuthService(String coupleId, HttpServletRequest request) {
         try {
