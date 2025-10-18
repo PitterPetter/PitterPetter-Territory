@@ -1,28 +1,36 @@
 package com.pitterpetter.loventure.territory.application;
 
-import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegion;
-import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegionRepository;
-import com.pitterpetter.loventure.territory.domain.region.Region;
-import com.pitterpetter.loventure.territory.domain.region.RegionRepository;
-import com.pitterpetter.loventure.territory.dto.*;
-import com.pitterpetter.loventure.territory.exception.ApiException;
-import com.pitterpetter.loventure.territory.exception.ErrorCode;
-import com.pitterpetter.loventure.territory.infra.AuthClient;
-import com.pitterpetter.loventure.territory.util.GeoJsonUtils;
-import com.pitterpetter.loventure.territory.util.ValidationUtils;
-import feign.FeignException;
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.locationtech.jts.geom.Point;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
+import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegion;
+import com.pitterpetter.loventure.territory.domain.coupleregion.CoupleRegionRepository;
+import com.pitterpetter.loventure.territory.domain.region.Region;
+import com.pitterpetter.loventure.territory.domain.region.RegionRepository;
+import com.pitterpetter.loventure.territory.dto.CitySummary;
+import com.pitterpetter.loventure.territory.dto.DistrictSummary;
+import com.pitterpetter.loventure.territory.dto.UnlockResponse;
+import com.pitterpetter.loventure.territory.dto.UnlockedOverviewResponse;
+import com.pitterpetter.loventure.territory.exception.ApiException;
+import com.pitterpetter.loventure.territory.exception.ErrorCode;
+import com.pitterpetter.loventure.territory.infra.AuthClient;
+import com.pitterpetter.loventure.territory.util.GeoJsonUtils;
+import com.pitterpetter.loventure.territory.util.ValidationUtils;
+
+import feign.FeignException;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
@@ -35,7 +43,7 @@ public class UnlockService {
 
     // ========================================================================
     // ✅ [1] Auth 검증 기반 초기 해금
-    // 프론트 → Territory → Auth → OK → 해금
+    // 프론트 → Territory → Auth → OK → 티켓 차감 → 해금
     // ========================================================================
     public List<UnlockResponse> initUnlock(String coupleId, List<String> regions, HttpServletRequest request) {
         log.info("🔐 [Init Unlock] Auth 검증 시작...");
@@ -44,7 +52,13 @@ public class UnlockService {
             throw new ApiException(ErrorCode.AUTH_TOKEN_INVALID, "Auth 토큰 검증 실패");
         }
 
-        log.info("✅ Auth 검증 통과. 해금 진행...");
+        log.info("✅ Auth 검증 통과. 티켓 차감 및 해금 진행...");
+        
+        // 티켓 차감 요청
+        if (!consumeTicketFromAuthService(coupleId, request)) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "티켓 잔여 수량 부족");
+        }
+        
         return unlockMultipleRegions(coupleId, regions);
     }
 
@@ -97,6 +111,32 @@ public class UnlockService {
             return true;
         } catch (Exception e) {
             log.error("❌ Redis 티켓 검증 실패: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    // ========================================================================
+    // ✅ Auth Service에서 티켓 차감 및 Rock 완료 요청 (init unlock용)
+
+    // ========================================================================
+    private boolean consumeTicketFromAuthService(String coupleId, HttpServletRequest request) {
+        try {
+            String token = request.getHeader(HttpHeaders.AUTHORIZATION);
+            if (token == null || !token.startsWith("Bearer ")) {
+                log.warn("⚠️ Authorization 헤더 누락 또는 잘못된 형식");
+                return false;
+            }
+
+            // Auth Service에 티켓 차감 및 Rock 완료 요청 (init unlock용)
+            authClient.consumeTicketAndCompleteRock(coupleId, token);
+            log.info("✅ Auth Service에서 티켓 차감 및 Rock 완료 성공 (coupleId={})", coupleId);
+            return true;
+
+        } catch (FeignException e) {
+            log.error("❌ 티켓 차감 및 Rock 완료 실패 (status={}, coupleId={}): {}", e.status(), coupleId, e.contentUTF8());
+            return false;
+        } catch (Exception e) {
+            log.error("❌ Auth Service 티켓 차감 및 Rock 완료 통신 오류 (coupleId={}): {}", coupleId, e.getMessage());
             return false;
         }
     }
