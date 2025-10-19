@@ -1,5 +1,15 @@
 package com.pitterpetter.loventure.territory.api;
 
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.pitterpetter.loventure.territory.application.UnlockService;
 import com.pitterpetter.loventure.territory.dto.UnlockListResponse;
 import com.pitterpetter.loventure.territory.dto.UnlockRequest;
@@ -8,14 +18,11 @@ import com.pitterpetter.loventure.territory.dto.UnlockedOverviewResponse;
 import com.pitterpetter.loventure.territory.exception.ApiException;
 import com.pitterpetter.loventure.territory.exception.ErrorCode;
 import com.pitterpetter.loventure.territory.util.CoupleHeaderResolver;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 /**
  * 🌐 지역 해금 컨트롤러
@@ -57,7 +64,14 @@ public class UnlockController {
             throw new ApiException(ErrorCode.AUTH_TOKEN_INVALID, "Auth 서버 검증 실패");
         }
 
-        // ③ 실제 지역 해금 수행
+        // ③ 티켓 차감 및 Rock 완료 (init unlock용)
+        boolean ticketConsumed = unlockService.consumeTicketFromAuthService(coupleId, httpRequest);
+        if (!ticketConsumed) {
+            log.warn("❌ [Init Unlock] 티켓 차감 실패 - 티켓 부족 (coupleId={})", coupleId);
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "티켓이 부족합니다");
+        }
+
+        // ④ 실제 지역 해금 수행
         List<UnlockResponse> results = unlockService.unlockMultipleRegions(coupleId, request.getRegionNames());
         log.info("✅ [Init Unlock] 해금 완료 (count={}, coupleId={})", results.size(), coupleId);
 
