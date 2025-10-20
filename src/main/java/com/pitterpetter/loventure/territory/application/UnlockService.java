@@ -24,6 +24,7 @@ import com.pitterpetter.loventure.territory.dto.UnlockedOverviewResponse;
 import com.pitterpetter.loventure.territory.exception.ApiException;
 import com.pitterpetter.loventure.territory.exception.ErrorCode;
 import com.pitterpetter.loventure.territory.infra.AuthClient;
+import com.pitterpetter.loventure.territory.service.RedisTicketService;
 import com.pitterpetter.loventure.territory.util.GeoJsonUtils;
 import com.pitterpetter.loventure.territory.util.ValidationUtils;
 
@@ -40,6 +41,7 @@ public class UnlockService {
     private final CoupleRegionRepository coupleRegionRepository;
     private final RegionRepository regionRepository;
     private final AuthClient authClient;
+    private final RedisTicketService redisTicketService;
 
     // ========================================================================
     // ✅ [1] Auth 검증 기반 초기 해금
@@ -102,16 +104,34 @@ public class UnlockService {
     }
 
     // ========================================================================
-    // ✅ Redis 검증 (Stub)
+    // ✅ Redis 검증 (실제 구현)
     // ========================================================================
     public boolean verifyRedisTicket(String coupleId) {
         try {
-            // TODO: 실제 RedisTemplate 검증 로직으로 교체
-            log.info("🎟️ Redis 티켓 검증 성공 (coupleId={})", coupleId);
-            return true;
+            boolean hasTicket = redisTicketService.hasTicket(coupleId);
+            if (hasTicket) {
+                log.info("🎟️ Redis 티켓 검증 성공 - coupleId: {}", coupleId);
+                return true;
+            } else {
+                log.warn("❌ Redis 티켓 부족 - coupleId: {}", coupleId);
+                return false;
+            }
         } catch (Exception e) {
-            log.error("❌ Redis 티켓 검증 실패: {}", e.getMessage());
+            log.error("❌ Redis 티켓 검증 실패 - coupleId: {}, error: {}", coupleId, e.getMessage());
             return false;
+        }
+    }
+    
+    /**
+     * Gateway에서 전달받은 티켓 정보를 Redis에 저장
+     */
+    public void setTicketCountFromGateway(String coupleId, int ticketCount) {
+        try {
+            redisTicketService.setTicketCount(coupleId, ticketCount);
+            log.info("🎟️ Gateway에서 전달받은 티켓 정보 저장 완료 - coupleId: {}, ticketCount: {}", coupleId, ticketCount);
+        } catch (Exception e) {
+            log.error("❌ Gateway 티켓 정보 저장 실패 - coupleId: {}, ticketCount: {}, error: {}", 
+                    coupleId, ticketCount, e.getMessage());
         }
     }
 
