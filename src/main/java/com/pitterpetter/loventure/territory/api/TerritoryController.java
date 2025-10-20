@@ -22,6 +22,7 @@ public class TerritoryController {
     private final TerritoryService territoryService;
     private final CoupleHeaderResolver coupleHeaderResolver; // ✅ Bean 주입
 
+
     /**
      * ✅ 좌표 기반 지역 체크 API
      * GET /api/regions/check?lon=127.0&lat=37.5
