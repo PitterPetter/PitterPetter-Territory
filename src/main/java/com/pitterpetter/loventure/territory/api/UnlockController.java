@@ -103,7 +103,19 @@ public class UnlockController {
             throw new ApiException(ErrorCode.INVALID_REQUEST, "coupleId 헤더가 비어 있습니다.");
         }
 
-        // ② Redis 티켓 검증
+        // ② Gateway에서 전달받은 티켓 정보 처리
+        String ticketCountHeader = httpRequest.getHeader("X-Ticket-Count");
+        if (ticketCountHeader != null) {
+            try {
+                int ticketCount = Integer.parseInt(ticketCountHeader);
+                unlockService.setTicketCountFromGateway(coupleId, ticketCount);
+                log.info("🎟️ Gateway에서 전달받은 티켓 정보 저장 - coupleId: {}, ticketCount: {}", coupleId, ticketCount);
+            } catch (NumberFormatException e) {
+                log.warn("⚠️ 잘못된 티켓 개수 형식 - coupleId: {}, ticketCount: {}", coupleId, ticketCountHeader);
+            }
+        }
+
+        // ③ Redis 티켓 검증
         boolean validTicket = unlockService.verifyRedisTicket(coupleId);
         if (!validTicket) {
             log.warn("❌ [Reward Unlock] 티켓 부족 (coupleId={})", coupleId);
