@@ -2,7 +2,7 @@ name: CI for Territory Service (Dev)
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ "develop" ]
 
 jobs:
   build-and-deploy:
